@@ -1,0 +1,27 @@
+name: Build endcord-gui (Windows)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Toggle windowed mode
+        run: python build.py --toggle-windowed
+
+      - name: Build
+        run: python build.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: endcord-gui
+          path: dist/
