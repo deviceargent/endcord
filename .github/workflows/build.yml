@@ -8,20 +8,25 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      UV: "1"
     steps:
       - uses: actions/checkout@v4
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
+      - name: Setup Python
+        run: uv python install 3.14
+
       - name: Toggle windowed mode
-        run: python build.py --toggle-windowed
+        run: uv run python build.py --toggle-windowed
 
       - name: Build
-        run: python build.py
+        run: uv run python build.py
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: endcord-gui
+          name: endcord-gui-windows
           path: dist/
