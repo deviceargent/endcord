@@ -22,12 +22,8 @@ jobs:
       - name: Toggle windowed mode
         run: uv run python build.py --toggle-windowed
 
-      - name: Build (PyInstaller)
-        shell: pwsh
-        run: |
-          $env:PATH = "$env:GITHUB_WORKSPACE\.gtk\bin;$env:PATH"
-          $env:LIB = "$env:GITHUB_WORKSPACE\.gtk\lib;$env:LIB"
-          uv run python build.py
+      - name: Build with Nuitka
+        run: uv run python build.py --nuitka --noclang
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
