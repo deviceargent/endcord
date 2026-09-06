@@ -180,8 +180,19 @@ def main(args):
             logger.error(traceback.format_exc())
             print("Curses error, see log for more info", file=sys.stderr)
             utils.wait_term()
-    except BaseException as e:
-        logger.info("CAUGHT")
+    except SystemExit as e:
+        if e.code:
+            if utils.THREAD_EXCEPTION:
+                exit_message = utils.THREAD_EXCEPTION
+            else:
+                exit_message = str(e.code)
+            if e.code:
+                logger.critical(f"Exit with message: {exit_message}")
+                print(f"{exit_message}\n\nPlease report this error here:\nhttps://github.com/sparklost/endcord/issues", file=sys.stderr)
+            else:
+                logger.info(f"Exit with message: {exit_message}")
+                print(f"{exit_message}", file=sys.stderr)
+    except Exception as e:
         error = "".join(traceback.format_exception(type(e), e, e.__traceback__))
         logger.critical(f"Exit with error:\n{error}")
         print(f"{error}\n\nPlease report this error here:\nhttps://github.com/sparklost/endcord/issues", file=sys.stderr)

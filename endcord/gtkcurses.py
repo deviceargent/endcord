@@ -115,7 +115,7 @@ if config_path:
             MAXIMIZED = config.get("maximized", MAXIMIZED)
             FONT_SIZE = config.get("font_size", FONT_SIZE)
             FONT_NAME = config.get("font_name", FONT_NAME)
-            LULTIPLE_INSTANCES = config.get("multiple_instances", MULTIPLE_INSTANCES)
+            MULTIPLE_INSTANCES = config.get("multiple_instances", MULTIPLE_INSTANCES)
             GTK_DARK_THEME = config.get("gtk_dark_theme", GTK_DARK_THEME)
             APP_NAME = config.get("app_name", APP_NAME)
             CTRL_SHIFT_V_PASTE = config.get("ctrl_shift_v_paste", CTRL_SHIFT_V_PASTE)
@@ -1225,8 +1225,12 @@ def wrapper(func, *args, **kwargs):   # noqa
                     exit_message = utils.THREAD_EXCEPTION
                 else:
                     exit_message = str(e.code)
-                logger.warning(f"Exit with message: {exit_message}")
-                error_handler(exit_message, error_event)
+                if e.code:
+                    logger.critical(f"Exit with message: {exit_message}")
+                    error_handler(exit_message, error_event, report=True)
+                else:
+                    logger.info(f"Exit with message: {exit_message}")
+                    error_handler(exit_message, error_event)
                 error_event.wait()
         except Exception as e:
             error_traceback = "".join(traceback.format_exception(type(e), e, e.__traceback__))
