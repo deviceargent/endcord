@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 import traceback
+import uuid
 from functools import lru_cache
 
 # support for gvsbuild
@@ -30,7 +31,7 @@ if sys.platform == "win32":
 import cairo
 import gi
 
-from endcord import utils
+from endcord import peripherals, utils
 from endcord.wide_ranges import WIDE_RANGES
 
 gi.require_version("Gtk", "3.0")
@@ -60,14 +61,18 @@ WINDOW_SIZE = (900, 600)
 MAXIMIZED = False
 FONT_SIZE = 12
 FONT_NAME = "Monospace"
+MULTIPLE_INSTANCES = True
 GTK_DARK_THEME = True
 BG_ALPHA = 1.0
 BG_ALPHA_COLOR = 1.0
+APP_NAME = "endcord"
 try:
     import __main__
+    TRUE_APP_NAME = APP_NAME
     APP_NAME = getattr(__main__, "APP_NAME", "endcord")
 except Exception:
-    APP_NAME = "endcord"
+    pass
+APP_ID = f"com.{peripherals.REPO_OWNER}.{TRUE_APP_NAME}"
 
 CTRL_SHIFT_V_PASTE = False   # enable Ctrl+Shift+V pasting
 ENABLE_TRAY = True
@@ -110,6 +115,7 @@ if config_path:
             MAXIMIZED = config.get("maximized", MAXIMIZED)
             FONT_SIZE = config.get("font_size", FONT_SIZE)
             FONT_NAME = config.get("font_name", FONT_NAME)
+            LULTIPLE_INSTANCES = config.get("multiple_instances", MULTIPLE_INSTANCES)
             GTK_DARK_THEME = config.get("gtk_dark_theme", GTK_DARK_THEME)
             APP_NAME = config.get("app_name", APP_NAME)
             CTRL_SHIFT_V_PASTE = config.get("ctrl_shift_v_paste", CTRL_SHIFT_V_PASTE)
@@ -189,7 +195,9 @@ current_icon_index = None
 nice_exit = False
 is_quitting = False
 gtk_window = None
+gtk_app = None
 use_tray = False
+desktop_integration = False
 
 
 @lru_cache(maxsize=64)
@@ -257,8 +265,9 @@ def glib_log_bridge(domain, level, message, user_data=None):   # noqa
         logger.error(f"[{domain}] {message}")
     elif level & GLib.LogLevelFlags.LEVEL_WARNING:
         logger.warning(f"[{domain}] {message}")
-    else:
-        logger.info(f"[{domain}] {message}")
+    # dont need info and debug
+    # else:
+    #     logger.info(f"[{domain}] {message}")
 
 
 def no_log(domain, level, message, user_data=None):   # noqa
@@ -348,10 +357,11 @@ def quit_app(instant=False):
         threading.Thread(target=stop_tray, daemon=True).start()
 
         def stop_gtk():
+            global gtk_window, gtk_app
             if gtk_window:
                 gtk_window.destroy()
-            if Gtk.main_level() > 0:
-                Gtk.main_quit()
+            if gtk_app:
+                gtk_app.quit()
             return False
         GLib.idle_add(stop_gtk)
 
@@ -379,7 +389,7 @@ def tray_thread():
     time.sleep(1)   # delay for window to init
     menu = Menu(
         MenuItem("Toggle Window", lambda x, y: tray_toggle()),   # noqa
-        MenuItem(f"Quit {APP_NAME}", lambda x, y: quit_app()),   # noqa
+        MenuItem(f"Quit {APP_NAME.capitalize()}", lambda x, y: quit_app()),   # noqa
     )
     icon = Icon(f"{APP_NAME.lower()}-tray", tray_icons[0], APP_NAME, menu)
     icon.run()
@@ -394,12 +404,54 @@ def set_nice_exit(value):
 # gtk stuff
 
 
+class GtkDesktopApp(Gtk.Application):
+    """GTK desktop integration"""
+
+    def __init__(self):
+        flags = Gio.ApplicationFlags.FLAGS_NONE if MULTIPLE_INSTANCES else Gio.ApplicationFlags.FLAGS_NONE
+        super().__init__(application_id=APP_ID, flags=flags)
+        GLib.set_prgname(APP_ID)
+
+    def do_startup(self):
+        """Startup GTK application"""
+        global desktop_integration
+        Gtk.Application.do_startup(self)
+        desktop_integration = True
+        if sys.platform == "linux":
+            try:
+                app_info = Gio.DesktopAppInfo.new(f"{APP_ID}.desktop")
+                if not app_info:
+                    logger.warning(f"No .desktop file found for '{APP_ID}', desktop integration will not work")
+                    desktop_integration = False
+            except TypeError:
+                logger.warning(f"No .desktop file found for '{APP_ID}', desktop integration will not work")
+                desktop_integration = False
+        notify_action = Gio.SimpleAction.new("notify-click", GLib.VariantType.new("s"))
+        notify_action.connect("activate", self.on_notify_clicked)
+        self.add_action(notify_action)
+
+    def on_notify_clicked(self, action, parameter):   # noqa
+        """Catch notification clicks"""
+        if parameter:
+            notification_id = parameter.get_string()
+            event_queue.put(f"NOTIFY_CLICK {notification_id}")
+        global gtk_window
+        if gtk_window:
+            gtk_window.present()
+
+    def do_activate(self):
+        """Activate gtk window"""
+        global gtk_window
+        if gtk_window and gtk_window not in self.get_windows():
+            self.add_window(gtk_window)
+
+
 class GtkTerminalWindow(Gtk.Window):
     """GTK window interface"""
 
     def __init__(self, curses_window):
         super().__init__()
-        self.set_title(APP_NAME)
+        self.set_title(APP_NAME.capitalize())
 
         # enable transparency
         if BG_ALPHA is not None:
@@ -883,7 +935,7 @@ def error_handler(message, unblock_event, report=False):
         report = "\n\nYou can report this here:\nhttps://github.com/sparklost/endcord/issues"
     def build_and_show():   # noqa
         win = Gtk.Window()
-        win.set_title(f"{APP_NAME} Error Report")
+        win.set_title(f"{APP_NAME.capitalize()} Error Report")
         win.set_default_size(800, 500)
         win.set_position(Gtk.WindowPosition.CENTER)
         scroll = Gtk.ScrolledWindow()
@@ -914,7 +966,67 @@ def error_handler(message, unblock_event, report=False):
     GLib.idle_add(build_and_show)
 
 
+def notify_send(title, message, sound=None, image_path=None, custom_sound=None):
+    """Send simple notification containing title, message and optionally image, with optional custom notification sound, linux only"""
+    if not desktop_integration:
+        if image_path:
+            image_path = os.path.expanduser(image_path)
+            image_path = peripherals.make_round_image(image_path)
+        return peripherals.notify_send(title, message, sound, image_path, custom_sound)
+
+    if image_path:
+        image_path = os.path.expanduser(image_path)
+        image_path = peripherals.make_round_image(image_path)
+
+    if custom_sound:
+        threading.Thread(target=peripherals.play_audio, daemon=True, args=(custom_sound, )).start()
+    elif sound and sys.platform == "linux":
+        if peripherals.no_notify_sound and peripherals.fallback_notification_sound:
+            threading.Thread(target=peripherals.play_audio, daemon=True, args=(peripherals.fallback_notification_sound, )).start()
+        else:
+            path = f"/usr/share/sounds/freedesktop/stereo/{sound}.oga"
+            if os.path.exists(path):
+                threading.Thread(target=peripherals.play_audio, daemon=True, args=(path, )).start()
+
+    try:
+        app = gtk_window.get_application()
+        if not app:
+            raise ValueError("GTK Application instance not found")
+
+        notification = Gio.Notification.new(title)
+        notification.set_body(message)
+
+        if image_path:
+            file = Gio.File.new_for_path(image_path)
+            icon = Gio.FileIcon.new(file)
+            notification.set_icon(icon)
+
+        notification_id = str(uuid.uuid4())
+        notification.set_default_action_and_target("app.notify-click", GLib.Variant.new_string(notification_id))
+        app.send_notification(notification_id, notification)
+        return notification_id
+
+    except (GLib.Error, AttributeError, ValueError) as e:
+        logger.warning(f"GTK notification failed ({e}), using fallback.")
+        return peripherals.notify_send(title, message, sound, image_path, custom_sound)
+
+    except Exception as e:
+        logger.error(f"Failed sending notification: {e}")
+        return None
+
+
+def notify_remove(notification_id):
+    """Remove notification by its id, linux only"""
+    if notification_id:
+        app = gtk_window.get_application()
+        try:
+            app.withdraw_notification(str(notification_id))
+        except GLib.Error:   # fllback
+            peripherals.notify_remove(notification_id)
+
+
 # curses stuff
+
 
 class Window:
     """GTK-Curses window class"""
@@ -1083,14 +1195,15 @@ def init_pair(pair_id, fg, bg):
 
 
 def initscr():   # noqa
-    global gtk_window
+    global gtk_window, gtk_app
     window = Window(0, 0, 0, 0, parent=None)
+    gtk_app = GtkDesktopApp()
     gtk_window = GtkTerminalWindow(window)
     return window
 
 
 def wrapper(func, *args, **kwargs):   # noqa
-    global gtk_window
+    global gtk_window, gtk_app
     window = initscr()
     func_result = None
 
@@ -1128,10 +1241,12 @@ def wrapper(func, *args, **kwargs):   # noqa
     if MAXIMIZED:
         gtk_window.maximize()
     gtk_window.show_all()
+
     try:
-        Gtk.main()
+        gtk_app.run(None)
     finally:
         pass
+
     return func_result
 
 

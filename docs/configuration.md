@@ -589,7 +589,9 @@ Note: everything after `%content` may be pushed to newline.
     Size of the font.
 - `font_name: "Source Code Pro"`  
     Name of the font installed on the system.
-- `gtk_dark_theme = True`  
+- `multiple_instances: true`  
+    Allow for launching multiple instances of same app.
+- `gtk_dark_theme: true`  
     Whether to use dark GTK theme for the window.
 - `app_name: "Endcord"`  
     Only changes title of the window.

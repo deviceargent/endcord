@@ -1,9 +1,12 @@
-Add notification floating number to desktop icon to gtkcurses
+VOICE CALLS:
+Add option to locally mute users in voice call
+Use libopus instead of pyav
+Add voice call normalization option
 Fix sound stuttering when using rnnoise
-Fix bad received voice call sound
 When double click on voice channel ask to confirm to join and switch to that channel chat
 
 CORE:
+Add real icon and tray icons
 Add keybinding configuration UI
 Add settings UI
 Add commands for other tools
