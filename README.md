@@ -300,7 +300,7 @@ But there is also setting in config to open media in external app (cross-system,
 
 ### GUI (Windowed) mode
 This mode entirely replaces curses and the need for terminal emulator, using GTK3 window, UI still remains terminal-like.  
-As as dependency, GTK3 must be installed. It is NOT required to run prebuilt binaries ONLY on windows.  
+As as dependency, GTK3 must be installed. It is NOT required ONLY on windows (build script will set everything up when toggling gui mode).  
 Tray icon will be enabled, so closing window will only minimize it to tray.  
 If using external editor, use editor with graphical interface. TUI editors will not work, as this is no longer in terminal.  
 Also, endcord built-in media player will not work because its standalone TUI thats not using curses. All media will be opened in native player.  
@@ -348,7 +348,7 @@ Note: official means installations from these sources are coming from endcord de
 ### Windows
 - Pre-built binaries (built with nuitka) are available in releases
 - [Build](#building) endcord, standalone executable can be found in `./dist/endcord.exe`
-- If your'e trying to run endcord-gui (windowed) from source or build it, you'll need GTK3. Install it using [gvsbuild](https://github.com/wingtk/gvsbuild).
+- It is recommended to use [endcord-gui](#gui-windowed-mode) on Windows.
 
 Install [WezTerm](https://wezterm.org/) (recommended), [windows terminal](https://github.com/microsoft/terminal), [cmder](https://github.com/cmderdev/cmder), or any other modern terminal. And run exe from there. If built with windowed mode, terminal is not required to use endcord.  
 WezTerm proved to introduce the least drawing issues.  

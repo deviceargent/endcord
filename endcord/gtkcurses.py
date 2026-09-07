@@ -60,7 +60,7 @@ logger = logging.getLogger(__name__)
 WINDOW_SIZE = (900, 600)
 MAXIMIZED = False
 FONT_SIZE = 12
-FONT_NAME = "Monospace"
+FONT_NAME = "Source Code Pro"
 MULTIPLE_INSTANCES = True
 GTK_DARK_THEME = True
 BG_ALPHA = 1.0
@@ -408,7 +408,7 @@ class GtkDesktopApp(Gtk.Application):
     """GTK desktop integration"""
 
     def __init__(self):
-        flags = Gio.ApplicationFlags.FLAGS_NONE if MULTIPLE_INSTANCES else Gio.ApplicationFlags.FLAGS_NONE
+        flags = Gio.ApplicationFlags.NON_UNIQUE if MULTIPLE_INSTANCES else Gio.ApplicationFlags.FLAGS_NONE
         super().__init__(application_id=APP_ID, flags=flags)
         GLib.set_prgname(APP_ID)
 
@@ -491,7 +491,11 @@ class GtkTerminalWindow(Gtk.Window):
         self.connect("destroy", self.on_destroy)
         self.connect("focus-in-event", lambda *_: event_queue.put("FOCUS_IN"))
         self.connect("focus-out-event", lambda *_: event_queue.put("FOCUS_OUT"))
-        self.font_desc = Pango.FontDescription.from_string(f"{FONT_NAME} {FONT_SIZE}")
+        self.on_windows = sys.platform == "win32"
+        if self.on_windows:
+            self.font_desc = Pango.FontDescription.from_string(f"{FONT_NAME}, Segoe UI Symbol, {FONT_SIZE}")
+        else:
+            self.font_desc = Pango.FontDescription.from_string(f"{FONT_NAME} {FONT_SIZE}")
         self.last_mouse_cell = (None, None)
         self.scroll_buffer = 0.0   # for touchpad
 
@@ -506,6 +510,7 @@ class GtkTerminalWindow(Gtk.Window):
         self.curses_window.char_height = self.char_height
         self.layout = self.drawing_area.create_pango_layout("")
         PangoCairo.context_set_resolution(self.layout.get_context(), 96)
+        self.emoji_y_offset = self.char_height * 0.2   # windows only
 
 
     def on_configure(self, widget, event):   # noqa
@@ -562,6 +567,8 @@ class GtkTerminalWindow(Gtk.Window):
                             break   # not grouping emoji because they have slightly wider font
 
                     text = "".join(span_text)
+                    if not text:
+                        continue
                     fg_idx = span_attr & 0xFFFF
                     if fg_idx >= len(color_map):
                         fg_idx = 0
@@ -573,7 +580,7 @@ class GtkTerminalWindow(Gtk.Window):
                     px_y = y * self.char_height
 
                     # draw bg
-                    if bg_color != bg and text:
+                    if bg_color != bg:
                         if BG_ALPHA_COLOR is not None:
                             cr.set_source_rgba(*rgb_to_cairo(bg_color), BG_ALPHA_COLOR)
                         else:
@@ -590,6 +597,10 @@ class GtkTerminalWindow(Gtk.Window):
                     layout.set_font_description(current_desc)
                     layout.set_text(text, -1)
                     cr.set_source_rgb(*rgb_to_cairo(fg_color))
+                    if self.on_windows and flags & A_EMOJI:
+                        cr.move_to(px_x, px_y + self.emoji_y_offset)
+                    else:
+                        cr.move_to(px_x, px_y)
                     cr.move_to(px_x, px_y)
                     PangoCairo.show_layout(cr, layout)
                     if flags & A_UNDERLINE:

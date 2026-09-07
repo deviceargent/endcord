@@ -141,7 +141,7 @@ class Endcord:
         self.member_list_width = config["member_list_width"]
         self.use_nick = config["use_nick_when_available"]
         self.status_char = config["tree_dm_status"]
-        self.activity_icons = utils.split_emoji(config["activity_icons"])
+        self.activity_icons = utils.split_emoji(config["activity_icons"], variation=not (uses_gtkcurses and sys.platform == "win32"))
         self.assist_skip_app_command = config["assist_skip_app_command"]
         self.extra_line_delay = config["extra_line_delay"]
         self.assist_limit = config["assist_limit"]

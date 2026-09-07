@@ -583,12 +583,16 @@ def is_emoji(character):
     return character in EMOJI_DATA
 
 
-def split_emoji(text):
-    """Split text on each character, taking care of emoji variation sequences"""
+def split_emoji(text, variation=True):
+    """Split text on each character, optionally keeping or removing emoji variation sequences."""
     result = []
     for char in text:
-        if result and "\ufe00" <= char <= "\ufe0f":
-            result[-1] += char
+        if "\ufe00" <= char <= "\ufe0f":
+            if variation:
+                if result:
+                    result[-1] += char
+                else:
+                    result.append(char)
         else:
             result.append(char)
     return result
