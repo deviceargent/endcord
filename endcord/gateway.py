@@ -31,6 +31,7 @@ from endcord import debug, perms, protobuf, protobuf_schemata
 from endcord.message import is_relevant_message, prepare_message
 
 DISCORD_HOST = "discord.com"
+DISCORD_HOST_GATEWY = "wss://gateway.discord.gg"
 LOCAL_MEMBER_COUNT = 50   # members per guild, CPU-RAM intensive
 LOCAL_VOICE_PRESENCE_LIMIT = 50   # per guild, slightly RAM intensive
 LIMIT_SUBSCRIBED = 5   # channels per guild
@@ -325,30 +326,33 @@ class Gateway():
 
     def connect(self):
         """Create initial connection to Discord gateway"""
-        try:
-            header = {
-                "Accept": "*/*",
-                "Content-Type": "application/json",
-                "Priority": "u=1",
-                "Sec-Fetch-Dest": "empty",
-                "Sec-Fetch-Mode": "cors",
-                "Sec-Fetch-Site": "cross-site",
-                "User-Agent": self.user_agent,
-            }
-            connection = peripherals.get_connection(self.host, timeout=3, proxy=self.proxy)
-            connection.request("GET", "/api/v9/gateway", headers=header)   # subscribe works differently in v10
-        except (socket.gaierror, TimeoutError, ConnectionResetError):
-            connection.close()
-            logger.warning("No internet connection. Exiting...")
-            sys.exit("No internet connection. Exiting...")
-        response = connection.getresponse()
-        if response.status == 200:
-            data = response.read()
-            connection.close()
-            self.gateway_url = json.loads(data)["url"]
+        if self.host == DISCORD_HOST:
+            self.gateway_url = DISCORD_HOST_GATEWY
         else:
-            connection.close()
-            sys.exit(f"Failed to get gateway url. Response code: {response.status}. Exiting...")
+            try:
+                header = {
+                    "Accept": "*/*",
+                    "Content-Type": "application/json",
+                    "Priority": "u=1",
+                    "Sec-Fetch-Dest": "empty",
+                    "Sec-Fetch-Mode": "cors",
+                    "Sec-Fetch-Site": "cross-site",
+                    "User-Agent": self.user_agent,
+                }
+                connection = peripherals.get_connection(self.host, timeout=3, proxy=self.proxy)
+                connection.request("GET", "/api/v9/gateway", headers=header)   # subscribe works differently in v10
+            except (socket.gaierror, TimeoutError, ConnectionResetError):
+                connection.close()
+                sys.exit("No internet connection. Exiting...")
+            response = connection.getresponse()
+            if response.status == 200:
+                data = response.read()
+                connection.close()
+                self.gateway_url = json.loads(data)["url"]
+                logger.info(self.gateway_url)
+            else:
+                connection.close()
+                sys.exit(f"Failed to get gateway url. Response code: {response.status}. Exiting...")
 
         error = self.connect_ws()
         if error:
