@@ -188,14 +188,14 @@ def main(args):
                 exit_message = str(e.code)
             if e.code:
                 logger.critical(f"Exit with message: {exit_message}")
-                print(f"{exit_message}\n\nPlease report this error here:\nhttps://github.com/sparklost/endcord/issues", file=sys.stderr)
+                print(f"{exit_message}\nPlease report this error here:\nhttps://github.com/sparklost/endcord/issues\n", file=sys.stderr)
             else:
                 logger.info(f"Exit with message: {exit_message}")
                 print(f"{exit_message}", file=sys.stderr)
     except Exception as e:
         error = "".join(traceback.format_exception(type(e), e, e.__traceback__))
         logger.critical(f"Exit with error:\n{error}")
-        print(f"{error}\n\nPlease report this error here:\nhttps://github.com/sparklost/endcord/issues", file=sys.stderr)
+        print(f"{error}\nPlease report this error here:\nhttps://github.com/sparklost/endcord/issues\n", file=sys.stderr)
         utils.wait_term()
     sys.exit(0)
 

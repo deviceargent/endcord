@@ -277,10 +277,7 @@ class Gateway():
 
     def connect_ws(self, resume=False):
         """Connect to websocket"""
-        if resume and self.resume_gateway_url:
-            gateway_url = self.resume_gateway_url
-        else:
-            gateway_url = self.gateway_url
+        gateway_url = self.resume_gateway_url if (resume and self.resume_gateway_url) else self.gateway_url
         try:
             if sys.platform == "darwin":
                 import certifi
@@ -329,7 +326,15 @@ class Gateway():
     def connect(self):
         """Create initial connection to Discord gateway"""
         try:
-            header = {"Priority": "u=1", "User-Agent": self.user_agent}
+            header = {
+                "Accept": "*/*",
+                "Content-Type": "application/json",
+                "Priority": "u=1",
+                "Sec-Fetch-Dest": "empty",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Site": "cross-site",
+                "User-Agent": self.user_agent,
+            }
             connection = peripherals.get_connection(self.host, timeout=3, proxy=self.proxy)
             connection.request("GET", "/api/v9/gateway", headers=header)   # subscribe works differently in v10
         except (socket.gaierror, TimeoutError, ConnectionResetError):
@@ -343,12 +348,10 @@ class Gateway():
             self.gateway_url = json.loads(data)["url"]
         else:
             connection.close()
-            logger.error(f"Failed to get gateway url. Response code: {response.status}. Exiting...")
             sys.exit(f"Failed to get gateway url. Response code: {response.status}. Exiting...")
 
         error = self.connect_ws()
         if error:
-            logger.error(f"Failed to get gateway url. Error: {error}. Exiting...")
             sys.exit(f"Failed to get gateway url. Error: {error}. Exiting...")
         self.state = 1
         self.heartbeat_interval = int(json.loads(zlib_decompress(self.ws.recv()))["d"]["heartbeat_interval"])
@@ -789,7 +792,6 @@ class Gateway():
                     logger.warning(f"Gateway status code: {status}, reason: {reason}")
                     if self.consecutive_errors >= 2:
                         self.disconnect_ws()
-                        logger.error(f"Failed to connect to gateway, error: {status} - {reason}")
                         sys.exit(f"Failed to connect to gateway, error: {status} - {reason}")
                     self.consecutive_errors += 1
                 self.resumable = status in (4000, 4009)
@@ -1999,7 +2001,6 @@ class Gateway():
         sleep_time = 0
         while not self.ready:
             if sleep_time >= self.heartbeat_interval / 100:
-                logger.error("Ready event could not be processed in time, probably because of too many servers. Exiting...")
                 sys.exit("Ready event could not be processed in time, probably because of too many servers. Exiting...")
             time.sleep(0.5)
             sleep_time += 5

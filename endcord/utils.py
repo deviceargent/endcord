@@ -114,7 +114,7 @@ def thread_exception_handler(args):
     if args.exc_type is SystemExit:
         code = args.exc_value.code if args.exc_value.code is not None else 0
         if code != 0:
-            THREAD_EXCEPTION = "".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback))
+            THREAD_EXCEPTION = str(code) if code != 1 else "Exit with code 1"
         return
     THREAD_EXCEPTION = "".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback))
 
