@@ -7367,8 +7367,11 @@ class Endcord:
             }
             update_tree = True
 
-        if channel_id == self.active_channel["channel_id"] and not self.tui.get_chat_selected()[1]:
-            self.set_channel_seen(self.active_channel["channel_id"], message_id)
+        if channel_id == self.active_channel["channel_id"]:
+            if not self.tui.get_chat_selected()[1] and self.tui.focused:
+                self.set_channel_seen(self.active_channel["channel_id"], message_id, force_remove_notify=False)
+            else:
+                self.this_unread = True
         if (update_tree or ping) and not skip_unread:
             self.update_tree()
         return update_tree
