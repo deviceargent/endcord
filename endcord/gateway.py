@@ -444,6 +444,7 @@ class Gateway():
                     self.guilds[guild_num]["channels"][channel_num]["pinned"] = True
             else:
                 hidden = False
+                flags = 0
             self.guilds[guild_num]["channels"][channel_num].update({
                 "message_notifications": channel["message_notifications"],
                 "muted": channel["muted"],

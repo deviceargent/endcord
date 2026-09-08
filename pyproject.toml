@@ -10,7 +10,7 @@ dependencies = [
     "orjson>=3.12.0",
     "soundcard>=0.4.6",
     "soundfile>=0.14.0",
-    "numpy>=2.5.2",
+    "numpy>=2.5.3",
     "pycryptodome>=3.23.0",
     "pywin32>=312; sys_platform == 'win32'",
     "pywin32-ctypes>=0.2.3; sys_platform == 'win32'",
@@ -35,10 +35,10 @@ media = [
 ]
 
 [build]
-python_max = "3.14.6"
-python_freethreaded = "3.14.6"
+python_max = "3.14.7"
+python_freethreaded = "3.14.7"
 python_last_safe = "3.13.14"
-curses_tag = "v6_6_20260808"
+curses_tag = "v6_6_20260905"
 rnnoise_tag = "main"
 mini_exclude_deps = ["numpy", "soundfile", "soundcard"]
 micro_exclude_deps = ["numpy", "soundfile", "soundcard", "orjson", "pycryptodome"]
