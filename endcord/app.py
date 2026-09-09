@@ -8219,7 +8219,7 @@ class Endcord:
             silence=self.config["call_silence_threshold"],
             opus_mode=self.config["call_opus_mode"],
             fast_mixer=self.config["call_fast_mixer"],
-            denoise=self.config["call_mic_noise_supression"],
+            denoise=self.config["call_mic_noise_suppression"],
         )
         self.in_call = {"guild_id": guild_id, "channel_id": channel_id}
         for _ in range(100):   # wait for 10s

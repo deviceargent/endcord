@@ -63,6 +63,7 @@ FONT_SIZE = 12
 FONT_NAME = "Source Code Pro"
 MULTIPLE_INSTANCES = True
 GTK_DARK_THEME = True
+BAR_THICKNESS = 0.5   # fraction of character width
 BG_ALPHA = 1.0
 BG_ALPHA_COLOR = 1.0
 APP_NAME = "endcord"
@@ -123,8 +124,9 @@ if config_path:
             TRAY_ICON_NORMAL = config.get("tray_icon_normal", TRAY_ICON_NORMAL)
             TRAY_ICON_UNREAD = config.get("tray_icon_unread", TRAY_ICON_UNREAD)
             TRAY_ICON_MENTION = config.get("tray_icon_mention", TRAY_ICON_MENTION)
-            BG_ALPHA = float(config.get("bg_alpha", BG_ALPHA))
-            BG_ALPHA_COLOR = float(config.get("bg_alpha_color", BG_ALPHA_COLOR))
+            BAR_THICKNESS = min(1, max(0, config.get("bar_thickness", BAR_THICKNESS)))
+            BG_ALPHA = min(1, max(0, float(config.get("bg_alpha", BG_ALPHA))))
+            BG_ALPHA_COLOR = min(1, max(0, float(config.get("bg_alpha_color", BG_ALPHA_COLOR))))
             DEFAULT_PAIR = tuple(tuple(color) for color in config.get("default_color_pair", DEFAULT_PAIR))
             SYSTEM_COLORS = tuple(tuple(color) for color in config.get("color_palette", SYSTEM_COLORS))
 
@@ -141,6 +143,7 @@ if config_path:
             "tray_icon_normal": TRAY_ICON_NORMAL,
             "tray_icon_unread": TRAY_ICON_UNREAD,
             "tray_icon_mention": TRAY_ICON_MENTION,
+            "bar_thickness": BAR_THICKNESS,
             "bg_alpha": BG_ALPHA,
             "bg_alpha_color": BG_ALPHA_COLOR,
             "default_color_pair": DEFAULT_PAIR,
@@ -511,6 +514,8 @@ class GtkTerminalWindow(Gtk.Window):
         self.layout = self.drawing_area.create_pango_layout("")
         PangoCairo.context_set_resolution(self.layout.get_context(), 96)
         self.emoji_y_offset = self.char_height * 0.2   # windows only
+        self.bar_thickness = self.char_width * BAR_THICKNESS
+        self.half_w, self.half_h = self.char_width / 2.0, self.char_height / 2.0
 
 
     def on_configure(self, widget, event):   # noqa
@@ -601,13 +606,33 @@ class GtkTerminalWindow(Gtk.Window):
                         cr.move_to(px_x, px_y + self.emoji_y_offset)
                     else:
                         cr.move_to(px_x, px_y)
-                    cr.move_to(px_x, px_y)
                     PangoCairo.show_layout(cr, layout)
                     if flags & A_UNDERLINE:
                         cr.set_line_width(1)
                         cr.move_to(px_x, px_y + self.char_height - 2)
                         cr.line_to(px_x + bg_px_width, px_y + self.char_height - 2)
                         cr.stroke()
+
+                    # thicker vertical lines
+                    if "┃" in text or "╽" in text or "╿" in text:
+                        cr.set_line_width(self.bar_thickness)
+                        stroke = False
+                        center_y = px_y + self.half_h
+                        for idx, char in enumerate(text):
+                            if char in ("┃", "╽", "╿"):
+                                stroke = True
+                                center_x = px_x + (idx * self.char_width) + self.half_w
+                                if char == "┃":
+                                    cr.move_to(center_x, px_y)
+                                    cr.line_to(center_x, px_y + self.char_height)
+                                elif char == "╽":
+                                    cr.move_to(center_x, center_y)
+                                    cr.line_to(center_x, px_y + self.char_height)
+                                elif char == "╿":
+                                    cr.move_to(center_x, px_y)
+                                    cr.line_to(center_x, center_y)
+                        if stroke:
+                            cr.stroke()
 
             # draw cursor
             if cursor_type:
