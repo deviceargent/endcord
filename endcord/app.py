@@ -2461,7 +2461,7 @@ class Endcord:
                                 content_urls.append(match.group())
                             url = urls[clicked_id]
                             embed_url = False
-                            for embed in self.get_msg_embeds(msg_index, media_only=False, stickers=False):
+                            for embed in self.get_msg_embeds(msg_index, media_only=True, stickers=False):
                                 if embed == url and url not in content_urls:
                                     embed_url = True
                                     break
