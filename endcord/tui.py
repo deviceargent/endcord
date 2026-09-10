@@ -890,8 +890,6 @@ class TUI():
 
     def get_focused(self):
         """Get whether chat is focused or not"""
-        if uses_gtkcurses:
-            return curses.focused
         return self.focused and not self.disable_drawing
 
 
@@ -2748,6 +2746,7 @@ class TUI():
                 self.pressed_num_key = int(key[-1:])
                 return self.return_input_code(42)
 
+            # deal with chains
             if key in self.chainable and not self.keybinding_chain:
                 self.keybinding_chain = key
                 continue
@@ -2755,16 +2754,19 @@ class TUI():
                 key = f"{self.keybinding_chain} {"SPACE" if key == " " else key}"
                 self.keybinding_chain = None
 
+            # gtkcurses events
             if key.startswith("PASTE"):
                 if key.startswith("PASTE_FILE"):
                     self.dropped_paths = json.loads(key[11:])   # list
-                    return self.return_input_code(54)
+                    return self.return_input_code(3000)
                 if key.startswith("PASTE_TEXT"):
                     self.dropped_paths = key[11:]   # string
-                    return self.return_input_code(54)
+                    return self.return_input_code(3000)
                 self.paste_text(key[6:])
-
-            if key == "QUIT":   # special for gtkcurses window X button
+            if key.startswith("NOTIFY_CLICK"):
+                self.dropped_paths = key[13:]   # reusing interface
+                return self.return_input_code(3001)
+            if key == "QUIT":
                 return self.return_input_code(34)
 
             key = self.key_map.get(key, key)

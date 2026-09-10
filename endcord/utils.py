@@ -114,7 +114,7 @@ def thread_exception_handler(args):
     if args.exc_type is SystemExit:
         code = args.exc_value.code if args.exc_value.code is not None else 0
         if code != 0:
-            THREAD_EXCEPTION = "".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback))
+            THREAD_EXCEPTION = str(code) if code != 1 else "Exit with code 1"
         return
     THREAD_EXCEPTION = "".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback))
 
@@ -583,12 +583,16 @@ def is_emoji(character):
     return character in EMOJI_DATA
 
 
-def split_emoji(text):
-    """Split text on each character, taking care of emoji variation sequences"""
+def split_emoji(text, variation=True):
+    """Split text on each character, optionally keeping or removing emoji variation sequences."""
     result = []
     for char in text:
-        if result and "\ufe00" <= char <= "\ufe0f":
-            result[-1] += char
+        if "\ufe00" <= char <= "\ufe0f":
+            if variation:
+                if result:
+                    result[-1] += char
+                else:
+                    result.append(char)
         else:
             result.append(char)
     return result

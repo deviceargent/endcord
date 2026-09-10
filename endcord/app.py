@@ -57,6 +57,7 @@ cythonized = importlib.util.find_spec("endcord_cython") and importlib.util.find_
 uses_gtkcurses = tui.uses_gtkcurses
 logger = logging.getLogger(__name__)
 recorder = peripherals.Recorder()
+notifier = curses if (sys.platform == "linux" and uses_gtkcurses) else peripherals
 
 ENABLE_EXTENSIONS = True
 MESSAGE_UPDATE_ELEMENTS = ("id", "content", "mentions", "mention_roles", "mention_everyone", "embeds", "edited")
@@ -140,7 +141,7 @@ class Endcord:
         self.member_list_width = config["member_list_width"]
         self.use_nick = config["use_nick_when_available"]
         self.status_char = config["tree_dm_status"]
-        self.activity_icons = utils.split_emoji(config["activity_icons"])
+        self.activity_icons = utils.split_emoji(config["activity_icons"], variation=not (uses_gtkcurses and sys.platform == "win32"))
         self.assist_skip_app_command = config["assist_skip_app_command"]
         self.extra_line_delay = config["extra_line_delay"]
         self.assist_limit = config["assist_limit"]
@@ -640,7 +641,7 @@ class Endcord:
                 self.notify_queue.task_done()
 
 
-    def idle_stats_timer(self):
+    def idle_status_timer(self):
         """Thread that waits for idle timeout to finish and set idle status"""
         self.stop_idle_event.clear()
         if self.stop_idle_event.wait(self.idle_timeout):
@@ -1104,7 +1105,6 @@ class Endcord:
             channel_id,
             self.get_chat_last_message_id(),
             ack=not (self.tui.get_chat_selected()[1]),   # ack only if its not scrolled up
-            force_remove_notify=True,
         )
         self.close_extra_window()
         if self.disable_sending:
@@ -2461,7 +2461,7 @@ class Endcord:
                                 content_urls.append(match.group())
                             url = urls[clicked_id]
                             embed_url = False
-                            for embed in self.get_msg_embeds(msg_index, media_only=False, stickers=False):
+                            for embed in self.get_msg_embeds(msg_index, media_only=True, stickers=False):
                                 if embed == url and url not in content_urls:
                                     embed_url = True
                                     break
@@ -2630,11 +2630,6 @@ class Endcord:
                         self.toggle_tab(channel_id, guild_id)
                     break
 
-            # drag and drop from gtkcurses
-            elif action == 54:
-                files = self.tui.get_dropped()
-                self.smart_paste(data=files)   # offload work to smart_paste
-
             # escape in main UI
             elif action == 5:
                 if self.recording:
@@ -2690,7 +2685,7 @@ class Endcord:
             elif action == 2001:
                 self.restore_input_text = (input_text, "command" if self.command else "standard extra")   # prevents closing extra window
                 if self.idle_timeout and self.my_status["status"] == "online":
-                    threading.Thread(target=self.idle_stats_timer, daemon=True).start()
+                    threading.Thread(target=self.idle_status_timer, daemon=True).start()
             elif action == 2000:
                 self.restore_input_text = (input_text, "command" if self.command else "standard extra")
                 if not self.idle_timeout:
@@ -2699,6 +2694,23 @@ class Endcord:
                     self.my_status["afk"] = False
                 self.set_status(None, temp=True)
                 self.stop_idle_event.set()
+
+            # drag and drop from gtkcurses
+            elif action == 3000:
+                files = self.tui.get_dropped()
+                self.smart_paste(data=files)   # offload work to smart_paste
+            # click on notification from gtkcurses
+            elif action == 3001:
+                notification_id = self.tui.get_dropped()   # reusing interface
+                for num, notif in enumerate(self.notifications):
+                    if notif["id"] == notification_id:
+                        notification = self.notifications.pop(num)
+                        break
+                else:
+                    continue
+                channel_id, _, guild_id, _, parent_hint = self.find_parents_from_id(notification["channel_id"])
+                self.switch_channel(channel_id, guild_id, parent_hint=parent_hint)
+                self.go_to_message(notification["message_id"])
 
             # command bindings
             elif isinstance(action, tuple):
@@ -7297,7 +7309,7 @@ class Endcord:
                 self.update_tree()
 
 
-    def set_channel_seen(self, channel_id, message_id=None, ack=True, force=False, update_tree=True, force_remove_notify=False):
+    def set_channel_seen(self, channel_id, message_id=None, ack=True, force=False, update_tree=True, force_remove_notify=True):
         """Set one channel as seen"""
         channel = self.read_state.get(channel_id)
         if channel:
@@ -7323,7 +7335,7 @@ class Endcord:
                 for num, notification in enumerate(self.notifications):
                     if notification["channel_id"] == channel_id:
                         notification_id = self.notifications.pop(num)["id"]
-                        peripherals.notify_remove(notification_id)
+                        notifier.notify_remove(notification_id)
                         break
 
 
@@ -7355,8 +7367,11 @@ class Endcord:
             }
             update_tree = True
 
-        if channel_id == self.active_channel["channel_id"] and not self.tui.get_chat_selected()[1]:
-            self.set_channel_seen(self.active_channel["channel_id"], message_id)
+        if channel_id == self.active_channel["channel_id"]:
+            if not self.tui.get_chat_selected()[1] and self.tui.focused:
+                self.set_channel_seen(self.active_channel["channel_id"], message_id, force_remove_notify=False)
+            else:
+                self.this_unread = True
         if (update_tree or ping) and not skip_unread:
             self.update_tree()
         return update_tree
@@ -7906,7 +7921,7 @@ class Endcord:
                     for num_1, notification in enumerate(self.notifications):
                         if notification["channel_id"] == channel_id:
                             notification_id = self.notifications.pop(num_1)["id"]
-                            peripherals.notify_remove(notification_id)
+                            notifier.notify_remove(notification_id)
                             break
 
 
@@ -8204,7 +8219,7 @@ class Endcord:
             silence=self.config["call_silence_threshold"],
             opus_mode=self.config["call_opus_mode"],
             fast_mixer=self.config["call_fast_mixer"],
-            denoise=self.config["call_mic_noise_supression"],
+            denoise=self.config["call_mic_noise_suppression"],
         )
         self.in_call = {"guild_id": guild_id, "channel_id": channel_id}
         for _ in range(100):   # wait for 10s
@@ -8413,7 +8428,7 @@ class Endcord:
         if self.remove_prev_notif:
             for num, notification in enumerate(self.notifications):
                 if notification["channel_id"] == channel_id:
-                    peripherals.notify_remove(notification["id"])
+                    notifier.notify_remove(notification["id"])
                     self.notifications.pop(num)
                     break
 
@@ -8468,19 +8483,21 @@ class Endcord:
             threading.Thread(target=peripherals.play_audio, daemon=True, args=(self.notification_path, )).start()
             return
 
-        notification_id = peripherals.notify_send(
+        notification_id = notifier.notify_send(
             title,
             body,
             sound=self.notification_sound,
             image_path=avatar_path,
             custom_sound=self.notification_path,
         )
-
-        # save notification id
         self.notifications.append({
             "id": notification_id,
+            "guild_id": guild_id,
             "channel_id": channel_id,
+            "message_id": data["id"],
         })
+        if len(self.notifications) >= 30:
+            self.notifications.pop(0)
 
 
     def check_for_updates(self, force=False, open_web=False, app=True, extensions=True, update=False):
@@ -8554,7 +8571,6 @@ class Endcord:
     def main(self):
         """Main app method"""
         logger.info("Init sequence started")
-        logger.info("Waiting for ready signal from gateway")
         self.my_status["client_state"] = "connecting"
         self.start_time = int(time.time())
         stats_timer = int(time.monotonic())
@@ -8978,7 +8994,7 @@ class Endcord:
                             self.slowmode_thread.start()
 
             # remove unseen after scrolled to bottom on unseen channel
-            if self.this_unread:
+            if self.this_unread and self.tui.focused:
                 if text_index == 0 and self.get_chat_last_message_id() == self.last_message_id:
                     self.unread_shift = 0
                     self.unread_count = 0

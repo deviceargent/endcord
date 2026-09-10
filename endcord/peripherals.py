@@ -30,7 +30,6 @@ REPO_OWNER = "sparklost"
 try:
     import __main__
     APP_NAME = __main__.APP_NAME   # set in main.py
-    logger.info(APP_NAME)
 except (AttributeError, NameError):
     APP_NAME = "endcord"
 VERSION = "1.5.4"
@@ -41,7 +40,13 @@ have_termux_notify = False
 if sys.platform == "win32":
     import win32clipboard
     try:
-        from windows_toasts import Toast, ToastDisplayImage, WindowsToaster
+        from windows_toasts import (
+            AudioSource,
+            Toast,
+            ToastAudio,
+            ToastDisplayImage,
+            WindowsToaster,
+        )
         toaster = WindowsToaster(APP_NAME)
     except OSError:
         toaster = None
@@ -187,19 +192,20 @@ def import_soundcard():
 
 
 def notify_send(title, message, sound="message", image_path=None, custom_sound=None):
-    """Send simple notification containing title, message and optionally image, with optional custom notification sound. Cross-platform."""
+    """Send simple notification containing title, message and optionally image, with optional custom notification sound"""
     if image_path:
         image_path = os.path.expanduser(image_path)
     image_path = make_round_image(image_path)
+
     if sys.platform == "linux":
+        include_sound = []
         if custom_sound:
             threading.Thread(target=play_audio, daemon=True, args=(custom_sound, )).start()
-            include_sound = []
-        elif no_notify_sound and fallback_notification_sound and have_notify_send:
-            threading.Thread(target=play_audio, daemon=True, args=(fallback_notification_sound, )).start()
-            include_sound = []
-        else:
-            include_sound = ["-h", f"string:sound-name:{sound}"]
+        elif sound:
+            if no_notify_sound and fallback_notification_sound and have_notify_send:
+                threading.Thread(target=play_audio, daemon=True, args=(fallback_notification_sound, )).start()
+            else:
+                include_sound = ["-h", f"string:sound-name:{sound}"]
         if have_termux_notify:
             command = ["termux-notification", "--icon=chat", "--sound", "--channel=1000", "-t", title, "-c", message]
             # if image_path:   # adds it as a large image
@@ -226,14 +232,18 @@ def notify_send(title, message, sound="message", image_path=None, custom_sound=N
             except ValueError:
                 return None
         return None
+
     if sys.platform == "win32" and toaster:
-        if custom_sound:
-            threading.Thread(target=play_audio, daemon=True, args=(custom_sound, )).start()
         notification = Toast()
         notification.text_fields = [message]
+        if custom_sound:
+            threading.Thread(target=play_audio, daemon=True, args=(custom_sound, )).start()
+        elif sound:
+            notification.audio = ToastAudio(AudioSource.IM)
         if image_path:
             notification.AddImage(ToastDisplayImage.fromPath(image_path))
         toaster.show_toast(notification)
+
     elif sys.platform == "darwin":
         if custom_sound:
             threading.Thread(target=play_audio, daemon=True, args=(custom_sound, )).start()
@@ -248,14 +258,15 @@ def notify_send(title, message, sound="message", image_path=None, custom_sound=N
 
 
 def notify_remove(notification_id):
-    """Removes notification by its id. Linux only."""
-    if sys.platform == "linux" and have_gdbus:
-        command = ["gdbus", "call", "--session", "--dest", "org.freedesktop.Notifications", "--object-path", "/org/freedesktop/Notifications", "--method", "org.freedesktop.Notifications.CloseNotification", str(notification_id)]
-        subprocess.Popen(
-            command,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+    """Remove notification by its id, linux only"""
+    if sys.platform != "linux" or not have_gdbus:
+        return
+    command = ["gdbus", "call", "--session", "--dest", "org.freedesktop.Notifications", "--object-path", "/org/freedesktop/Notifications", "--method", "org.freedesktop.Notifications.CloseNotification", str(notification_id)]
+    subprocess.Popen(
+        command,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 def copy_to_clipboard(text):
